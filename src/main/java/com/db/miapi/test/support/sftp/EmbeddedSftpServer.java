@@ -36,7 +36,7 @@ public class EmbeddedSftpServer {
      * Root directory is auto-created if missing.
      */
     public EmbeddedSftpServer rootDirectory(String rootDir) {
-        Path rootPath = Paths.get(rootDir);
+        Path rootPath = Paths.get(rootDir).toAbsolutePath();
         try {
             Files.createDirectories(rootPath);
         } catch (IOException e) {
