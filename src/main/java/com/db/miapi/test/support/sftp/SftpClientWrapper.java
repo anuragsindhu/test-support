@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.sftp.client.SftpClient;
+import org.apache.sshd.sftp.client.SftpClient.DirEntry;
 import org.apache.sshd.sftp.client.SftpClientFactory;
 
 @Slf4j
@@ -45,18 +46,6 @@ public class SftpClientWrapper implements AutoCloseable {
         return local;
     }
 
-    public List<SftpClient.DirEntry> ls(String remoteDir) throws IOException {
-        List<SftpClient.DirEntry> files = new ArrayList<>();
-        try {
-            for (SftpClient.DirEntry entry : sftp.readDir(remoteDir)) {
-                files.add(entry);
-            }
-        } catch (IOException e) {
-            throw new IOException("Failed to list directory: " + remoteDir, e);
-        }
-        return files;
-    }
-
     public String put(Path local, String remote) throws IOException {
         try (OutputStream out = sftp.write(remote)) {
             Files.copy(local, out);
@@ -66,14 +55,48 @@ public class SftpClientWrapper implements AutoCloseable {
         return remote;
     }
 
+    public List<DirEntry> ls(String remoteDir) throws IOException {
+        List<DirEntry> entries = new ArrayList<>();
+        try {
+            for (DirEntry entry : sftp.readDir(remoteDir)) {
+                entries.add(entry);
+            }
+        } catch (IOException e) {
+            throw new IOException("Failed to list directory: " + remoteDir, e);
+        }
+        return entries;
+    }
+
     public boolean rm(String remoteFile) {
         try {
             sftp.remove(remoteFile);
             return true;
         } catch (IOException e) {
-            log.warn("Failed to remove file: {}", remoteFile, e);
+            log.warn("Failed to remove file {}: {}", remoteFile, e.getMessage());
             return false;
         }
+    }
+
+    public void mkdir(String remoteDir) throws IOException {
+        sftp.mkdir(remoteDir);
+    }
+
+    public boolean rmdir(String remoteDir) {
+        try {
+            sftp.rmdir(remoteDir);
+            return true;
+        } catch (IOException e) {
+            log.warn("Failed to remove directory {}: {}", remoteDir, e.getMessage());
+            return false;
+        }
+    }
+
+    public SftpClient.Attributes stat(String remotePath) throws IOException {
+        return sftp.stat(remotePath);
+    }
+
+    public boolean isConnected() {
+        return session.isAuthenticated() && sftp != null;
     }
 
     @Override

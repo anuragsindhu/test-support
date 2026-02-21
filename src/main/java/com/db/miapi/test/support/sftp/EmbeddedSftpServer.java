@@ -24,23 +24,20 @@ public class EmbeddedSftpServer {
         return new EmbeddedSftpServer();
     }
 
-    /**
-     * Set the port. Use 0 for dynamic assignment (OS picks free port).
-     */
     public EmbeddedSftpServer port(int port) {
+        if (port < 0) {
+            throw new IllegalArgumentException("Port must be non-negative");
+        }
         sshd.setPort(port);
         return this;
     }
 
-    /**
-     * Root directory is auto-created if missing.
-     */
     public EmbeddedSftpServer rootDirectory(String rootDir) {
         Path rootPath = Paths.get(rootDir).toAbsolutePath();
         try {
             Files.createDirectories(rootPath);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create root directory: " + rootDir, e);
+            throw new RuntimeException("Failed to create root directory: " + rootPath, e);
         }
         sshd.setFileSystemFactory(new VirtualFileSystemFactory(rootPath));
         return this;
@@ -57,30 +54,39 @@ public class EmbeddedSftpServer {
     }
 
     public EmbeddedSftpServer inMemoryHostKeys(Map<String, Integer> algorithmKeySizes) throws Exception {
+        if (algorithmKeySizes == null || algorithmKeySizes.isEmpty()) {
+            algorithmKeySizes = Map.of("RSA", 2048);
+        }
         sshd.setKeyPairProvider(new InMemoryMultiKeyPairProvider(algorithmKeySizes));
         return this;
     }
 
     public void start() throws Exception {
-        try {
-            sshd.start();
-            log.info("SFTP Server started on port {}", sshd.getPort());
-        } catch (Exception e) {
-            log.error("Failed to start SFTP Server", e);
-            throw e;
+        if (sshd.isStarted()) {
+            throw new IllegalStateException("SFTP Server already started");
         }
+        sshd.start();
+        log.info(
+                "SFTP Server started on port {} with root {}",
+                sshd.getPort(),
+                ((VirtualFileSystemFactory) sshd.getFileSystemFactory()).getDefaultHomeDir());
     }
 
     public void stop() {
         try {
-            sshd.stop();
-            log.info("SFTP Server stopped");
+            if (sshd.isOpen()) {
+                sshd.close(true);
+                log.info("SFTP Server stopped");
+            }
         } catch (Exception e) {
             log.error("Failed to stop SFTP Server", e);
         }
     }
 
     public int getPort() {
+        if (!sshd.isOpen()) {
+            throw new IllegalStateException("SFTP Server not started yet");
+        }
         return sshd.getPort();
     }
 }
